@@ -1,10 +1,25 @@
 import type { AppConfig } from "./config";
 
+import {
+  getModelListTimeoutMs,
+  resolveModelDefaults,
+  type ModelDefaultsOverrides,
+} from "./model-defaults.js";
 import chalk from "chalk";
 import OpenAI from "openai";
 
-const MODEL_LIST_TIMEOUT_MS = 2_000; // 2 seconds
-export const RECOMMENDED_MODELS: Array<string> = ["o4-mini", "o3"];
+/**
+ * Recommended models for a provider.
+ *
+ * Derived from the shared defaults table rather than hardcoded here, so there
+ * is one list per provider to keep current instead of two that drift apart.
+ */
+export function getRecommendedModels(
+  provider: string | undefined,
+  overrides?: ModelDefaultsOverrides,
+): Array<string> {
+  return resolveModelDefaults(provider, overrides).recommended;
+}
 
 /**
  * Background model loader / cache.
@@ -68,7 +83,7 @@ export async function isModelSupported(
   if (
     typeof model !== "string" ||
     model.trim() === "" ||
-    RECOMMENDED_MODELS.includes(model)
+    getRecommendedModels(config.provider).includes(model)
   ) {
     return true;
   }
@@ -77,7 +92,7 @@ export async function isModelSupported(
     const models = await Promise.race<Array<string>>([
       getAvailableModels(config),
       new Promise<Array<string>>((resolve) =>
-        setTimeout(() => resolve([]), MODEL_LIST_TIMEOUT_MS),
+        setTimeout(() => resolve([]), getModelListTimeoutMs()),
       ),
     ]);
 

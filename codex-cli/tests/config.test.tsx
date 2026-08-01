@@ -1,6 +1,7 @@
 import type * as fsType from "fs";
 import { loadConfig, saveConfig } from "../src/utils/config.js"; // parent import first
 import { AutoApprovalMode } from "../src/utils/auto-approval-mode.js";
+import { resolveModelDefaults } from "../src/utils/model-defaults.js";
 import { tmpdir } from "os";
 import { join } from "path";
 import { test, expect, beforeEach, afterEach, vi } from "vitest";
@@ -59,8 +60,15 @@ test("loads default config if files don't exist", () => {
     disableProjectDoc: true,
     forceApiKeyForTest: "test-api-key",
   });
-  expect(config).toEqual({
-    model: "o4-mini",
+
+  // The model is deliberately *not* asserted as a literal here. Pinning a
+  // specific identifier is what made this test complicit in P3: it locked in
+  // `o4-mini` and kept passing long after that model was withdrawn. Assert the
+  // wiring instead — the default must come from the shared defaults table.
+  expect(config.model).toBe(resolveModelDefaults("openai").agentic);
+  expect(config.model).not.toBe("");
+
+  expect(config).toMatchObject({
     baseURL: "https://api.openai.com/v1",
     instructions: "",
     provider: "openai",

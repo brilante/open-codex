@@ -47,8 +47,14 @@ vi.mock("openai", () => {
       },
     };
   }
-  class APIConnectionTimeoutError extends Error {}
-  return { __esModule: true, default: FakeOpenAI, APIConnectionTimeoutError };
+  class APIConnectionError extends Error {}
+  class APIConnectionTimeoutError extends APIConnectionError {}
+  return {
+    __esModule: true,
+    default: FakeOpenAI,
+    APIConnectionError,
+    APIConnectionTimeoutError,
+  };
 });
 
 // --- Helpers referenced by handle‑exec‑command -----------------------------

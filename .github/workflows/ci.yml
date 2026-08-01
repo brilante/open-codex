@@ -17,7 +17,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .nvmrc
 
       # Run codex-cli/ tasks first because they are higher signal.
 
@@ -49,6 +49,19 @@ jobs:
         working-directory: codex-cli
         run: npm run build
 
+      # Exercises the built binary rather than the source: catches breakage
+      # that only appears after bundling, plus doc/CLI drift.
+      - name: Smoke test (codex-cli)
+        working-directory: codex-cli
+        run: npm run smoke
+
+      # Gate: shipped (runtime) dependencies must carry zero known
+      # vulnerabilities. Dev-only advisories are tracked separately by the
+      # `audit-dev` job below, which is advisory and does not block merges.
+      - name: Security audit — runtime deps (codex-cli)
+        working-directory: codex-cli
+        run: npm audit --omit=dev
+
       # Run formatting checks in the root directory last.
 
       - name: Install dependencies (root)
@@ -56,3 +69,27 @@ jobs:
 
       - name: Check formatting (root)
         run: npm run format
+
+  # Advisory only: the dev toolchain (eslint / ts-node lineage) carries
+  # advisories that are not shipped to users. Reported for visibility so the
+  # backlog stays visible, but never blocks a merge.
+  audit-dev:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Install dependencies (codex-cli)
+        working-directory: codex-cli
+        run: npm ci
+
+      - name: Security audit — full tree (advisory)
+        working-directory: codex-cli
+        run: npm audit

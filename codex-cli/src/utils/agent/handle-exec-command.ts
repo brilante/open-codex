@@ -11,6 +11,11 @@ import { FullAutoErrorMode } from "../auto-approval-mode.js";
 import { SandboxType } from "./sandbox/interface.js";
 import { canAutoApprove } from "../../approvals.js";
 import { formatCommandForDisplay } from "../../format-command.js";
+import {
+  checkLinuxUnsandboxedExecution,
+  isContainerized,
+  isUnsafeOptInEnabled,
+} from "./sandbox/no-sandbox-guard.js";
 import { access } from "fs/promises";
 
 // ---------------------------------------------------------------------------
@@ -257,20 +262,21 @@ async function execCommand(
   };
 }
 
-const isInLinux = async (): Promise<boolean> => {
-  try {
-    await access("/proc/1/cgroup");
-    return true;
-  } catch {
-    return false;
-  }
-};
-
 async function getSandbox(runInSandbox: boolean): Promise<SandboxType> {
   if (runInSandbox) {
     if (process.platform === "darwin") {
       return SandboxType.MACOS_SEATBELT;
-    } else if (await isInLinux()) {
+    } else if (process.platform === "linux") {
+      // Linux has no sandbox implementation yet. Rather than silently running
+      // unisolated, require the caller to either be inside a container or to
+      // have opted in explicitly. See no-sandbox-guard.ts for the rationale.
+      const decision = checkLinuxUnsandboxedExecution({
+        containerized: await isContainerized(),
+        optIn: isUnsafeOptInEnabled(),
+      });
+      if (!decision.allowed) {
+        throw new Error(decision.message);
+      }
       return SandboxType.NONE;
     } else if (process.platform === "win32") {
       // On Windows, we don't have a sandbox implementation yet, so we fall back to NONE

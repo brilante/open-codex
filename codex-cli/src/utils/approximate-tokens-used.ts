@@ -34,8 +34,13 @@ export function approximateTokensUsed(
     }
     if ("tool_calls" in item && item.tool_calls) {
       for (const toolCall of item.tool_calls) {
-        charCount += toolCall.function.name.length;
-        charCount += toolCall.function.arguments.length;
+        if (toolCall.type === "function") {
+          charCount += toolCall.function.name.length;
+          charCount += toolCall.function.arguments.length;
+        } else {
+          charCount += toolCall.custom.name.length;
+          charCount += toolCall.custom.input.length;
+        }
       }
     }
   }

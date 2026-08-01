@@ -3,7 +3,7 @@ import type { AppConfig } from "src/utils/config.js";
 import TypeaheadOverlay from "./typeahead-overlay.js";
 import {
   getAvailableModels,
-  RECOMMENDED_MODELS,
+  getRecommendedModels,
 } from "../utils/model-utils.js";
 import { Box, Text, useInput } from "ink";
 import React, { useEffect, useState } from "react";
@@ -40,7 +40,9 @@ export default function ModelOverlay({
       const models = await getAvailableModels(config);
 
       // Split the list into recommended and “other” models.
-      const recommended = RECOMMENDED_MODELS.filter((m) => models.includes(m));
+      const recommended = getRecommendedModels(config.provider).filter(
+        (m: string) => models.includes(m),
+      );
       const others = models.filter((m) => !recommended.includes(m));
 
       const ordered = [...recommended, ...others.sort()];

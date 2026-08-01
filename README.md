@@ -1,14 +1,67 @@
 <h1 align="center">Open Codex CLI</h1>
 <p align="center">Lightweight coding agent that runs in your terminal</p>
 
-<p align="center"><code>npm i -g open-codex</code></p>
+## Lineage
 
-> **Important Note**: This is a fork of the [original OpenAI Codex CLI](https://github.com/openai/codex) with expanded model support and changed installation instructions. The main differences in this fork are:
->
-> - Support for multiple AI providers (OpenAI, Gemini, OpenRouter, Ollama)
-> - Uses the [Chat Completion API instead of the Responses API](https://platform.openai.com/docs/guides/responses-vs-chat-completions) which allows us to support any openai compatible provider and model.
-> - All other functionality remains similar to the original project
-> - You can install this fork globally with `npm i -g open-codex`
+```
+openai/codex (original, since rewritten in Rust)
+  └─ ymichael/open-codex v0.1.31   ← unmaintained since 2025-05
+       └─ this repository           ← personal maintenance fork, v0.2.0+
+```
+
+This is a **personal maintenance fork** of
+[`ymichael/open-codex`](https://github.com/ymichael/open-codex), which stopped
+receiving updates at v0.1.31. It exists to keep a multi-provider terminal coding
+agent that is small enough for one person to read, patch, and trust — not to
+compete on features.
+
+Inherited from the upstream fork:
+
+- Multiple providers (OpenAI, Gemini, OpenRouter, xAI, Ollama)
+- [Chat Completions API rather than the Responses API](https://platform.openai.com/docs/guides/responses-vs-chat-completions),
+  which is what makes any OpenAI-compatible endpoint usable
+
+Changed in this fork:
+
+- Runtime dependencies carry **zero** known advisories, enforced in CI
+- OpenAI SDK on v7 (upstream shipped v4)
+- Model defaults are **configuration, not code** — see [Choosing a model](#choosing-a-model)
+- `--full-auto` refuses to run unsandboxed on Linux unless you opt in explicitly
+- Update checks against the npm registry are off by default
+
+### Install
+
+This fork is **not published to npm**; `npm i -g open-codex` installs the
+unmaintained upstream package, not this one. Install from source:
+
+```bash
+git clone https://github.com/brilante/open-codex.git
+cd open-codex/codex-cli
+npm ci
+npm run build
+npm link          # exposes `open-codex` on your PATH
+```
+
+### Choosing a model
+
+Model identifiers expire faster than releases do, so they live in
+`~/.codex/config.json` rather than in the source. The built-in table is only a
+fallback:
+
+```json
+{
+  "provider": "openai",
+  "models": {
+    "openai": {
+      "agentic": "gpt-5.3-codex",
+      "fullContext": "gpt-5.6-sol"
+    }
+  }
+}
+```
+
+Resolution order: `--model` → `model` → `models.<provider>` → built-in fallback.
+Set `CODEX_MODEL_LIST_TIMEOUT_MS` if your provider is slow to list models.
 
 ---
 
@@ -369,26 +422,26 @@ You can also use models from other providers like Gemini and OpenRouter. See the
 
 ---
 
-## Zero Data Retention (ZDR) Organization Limitation
+## Zero Data Retention (ZDR) Organizations
 
-> **Note:** Codex CLI does **not** currently support OpenAI organizations with [Zero Data Retention (ZDR)](https://platform.openai.com/docs/guides/your-data#zero-data-retention) enabled.
+> **This limitation does not apply to this fork.**
 
-If your OpenAI organization has Zero Data Retention enabled, you may encounter errors such as:
+The upstream Codex CLI documented an incompatibility with OpenAI organizations
+that have [Zero Data Retention](https://platform.openai.com/docs/guides/your-data#zero-data-retention)
+enabled, producing errors like:
 
 ```
-OpenAI rejected the request. Error details: Status: 400, Code: unsupported_parameter, Type: invalid_request_error, Message: 400 Previous response cannot be used for this organization due to Zero Data Retention.
+400 Previous response cannot be used for this organization due to Zero Data Retention.
 ```
 
-**Why?**
+That failure came from the **Responses API**, which chains turns together with
+`previous_response_id` and requires `store: true` — something a ZDR organization
+cannot use.
 
-- Codex CLI relies on the Responses API with `store:true` to enable internal reasoning steps.
-- As noted in the [docs](https://platform.openai.com/docs/guides/your-data#responses-api), the Responses API requires a 30-day retention period by default, or when the store parameter is set to true.
-- ZDR organizations cannot use `store:true`, so requests will fail.
-
-**What can I do?**
-
-- If you are part of a ZDR organization, Codex CLI will not work until support is added.
-- We are tracking this limitation and will update the documentation if support becomes available.
+This fork talks to the **Chat Completions API** instead and sends the full
+conversation on every request. It never sets `store` and never references a
+previous response id, so there is nothing for a ZDR policy to reject. The
+section is kept only to correct the inherited documentation.
 
 ## Funding Opportunity
 
@@ -480,7 +533,11 @@ To publish a new version of the CLI, run the release scripts defined in `codex-c
 
 ## Security & Responsible AI
 
-Have you discovered a vulnerability or have concerns about model output? Please e‑mail **security@openai.com** and we will respond promptly.
+Found a vulnerability? See [SECURITY.md](SECURITY.md) and open a private
+security advisory on this repository.
+
+Reports do **not** reach OpenAI. The former `security@openai.com` contact was
+inherited from the original project and does not cover this fork.
 
 ---
 

@@ -1,0 +1,51 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "timezone": "Asia/Seoul",
+  "schedule": ["before 6am on monday"],
+  "prConcurrentLimit": 3,
+  "labels": ["dependencies"],
+  "rangeStrategy": "bump",
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "schedule": ["at any time"],
+    "labels": ["dependencies", "security"],
+    "prPriority": 10
+  },
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 6am on the first day of the month"]
+  },
+  "packageRules": [
+    {
+      "description": "Group low-risk dev tooling into a single PR to keep review volume manageable.",
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "dev tooling (non-major)"
+    },
+    {
+      "description": "R3 — ink and react majors drag the whole TUI with them. The upstream project never made that jump and this fork has thin TUI test coverage, so a major here is a deliberate project, not a routine bump. Renovate must not open these.",
+      "matchPackageNames": [
+        "ink",
+        "react",
+        "react-dom",
+        "@types/react",
+        "@inkjs/ui"
+      ],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    },
+    {
+      "description": "The OpenAI SDK is the primary integration surface; keep its majors separate and clearly labelled so they get a dedicated review.",
+      "matchPackageNames": ["openai"],
+      "matchUpdateTypes": ["major"],
+      "labels": ["dependencies", "sdk-major"],
+      "groupName": "openai SDK major"
+    },
+    {
+      "description": "Runtime dependencies ship to users — never auto-merge, always review.",
+      "matchDepTypes": ["dependencies"],
+      "automerge": false
+    }
+  ]
+}
