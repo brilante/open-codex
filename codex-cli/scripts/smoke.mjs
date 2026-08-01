@@ -16,6 +16,13 @@
  * Usage:
  *   node scripts/smoke.mjs
  *   node scripts/smoke.mjs --provider ollama --model qwen2.5-coder
+ *   node scripts/smoke.mjs --provider ollama --model my-model \
+ *     --base-url http://127.0.0.1:1234/v1
+ *
+ * `--base-url` retargets the `ollama` provider at any OpenAI-compatible
+ * endpoint (LM Studio, llama.cpp, vLLM, a remote gateway). Being able to name
+ * the endpoint on the command line is what makes this reusable from CI and
+ * from a scheduled job, which is the whole point of scripting the scenario.
  */
 import { spawn } from "node:child_process";
 import { readFileSync, existsSync } from "node:fs";
@@ -115,13 +122,22 @@ async function main() {
   const provider = flag("--provider");
   if (provider) {
     const model = flag("--model");
+    const baseUrl = flag("--base-url");
     const liveArgs = ["--provider", provider, "--quiet"];
     if (model) {
       liveArgs.push("--model", model);
     }
     liveArgs.push("Reply with exactly the word: pong");
 
-    const live = await run(liveArgs, { timeoutMs: 120_000 });
+    // The CLI resolves a provider's endpoint internally; OLLAMA_BASE_URL is
+    // its documented override for OpenAI-compatible local servers.
+    const liveEnv = baseUrl ? { OLLAMA_BASE_URL: baseUrl } : {};
+    if (baseUrl) {
+      // eslint-disable-next-line no-console
+      console.log(`       (endpoint: ${baseUrl})`);
+    }
+
+    const live = await run(liveArgs, { timeoutMs: 120_000, env: liveEnv });
     const out = (live.stdout + live.stderr).toLowerCase();
     record(
       `live round trip via ${provider}`,
