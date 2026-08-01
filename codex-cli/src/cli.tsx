@@ -54,8 +54,8 @@ const cli = meow(
 
   Options
     -h, --help                 Show usage and exit
-    -m  --provider <provider>  Provider to use for completions (default: openai, options: openai, gemini, openrouter, ollama, xai)
-    -m, --model <model>        Model to use for completions (default: o4-mini)
+    -p, --provider <provider>  Provider to use for completions (default: openai, options: openai, gemini, openrouter, ollama, xai)
+    -m, --model <model>        Model to use for completions (defaults per provider; override in ~/.codex/config.json)
     -i, --image <path>         Path(s) to image files to include as input
     -v, --view <rollout>       Inspect a previously saved rollout instead of starting a session
     -q, --quiet                Non-interactive mode that only prints the assistant's final output
@@ -90,7 +90,7 @@ const cli = meow(
     flags: {
       // misc
       help: { type: "boolean", aliases: ["h"] },
-      view: { type: "string" },
+      view: { type: "string", aliases: ["v"] },
       model: { type: "string", aliases: ["m"] },
       provider: { type: "string", aliases: ["p"] },
       image: { type: "string", isMultiple: true, aliases: ["i"] },
@@ -381,8 +381,10 @@ function formatChatCompletionMessageParamForQuietMode(
       const details = parseToolCallChatCompletion(toolCall);
       if (details) {
         parts.push(`$ ${details.cmdReadableText}`);
-      } else {
+      } else if (toolCall.type === "function") {
         parts.push(`$ ${toolCall.function.name}`);
+      } else {
+        parts.push(`$ ${toolCall.custom.name}`);
       }
     }
   }

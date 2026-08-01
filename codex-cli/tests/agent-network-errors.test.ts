@@ -25,7 +25,8 @@ const openAiState: {
 } = {};
 
 vi.mock("openai", () => {
-  class APIConnectionTimeoutError extends Error {}
+  class APIConnectionError extends Error {}
+  class APIConnectionTimeoutError extends APIConnectionError {}
 
   class FakeOpenAI {
     public chat = {
@@ -38,6 +39,7 @@ vi.mock("openai", () => {
   return {
     __esModule: true,
     default: FakeOpenAI,
+    APIConnectionError,
     APIConnectionTimeoutError,
   };
 });

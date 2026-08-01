@@ -19,6 +19,7 @@ import {
   setSessionId,
 } from "../session.js";
 import { handleExecCommand } from "./handle-exec-command.js";
+import { hasNetworkErrno, isConnectionError } from "./is-connection-error.js";
 import { randomUUID } from "node:crypto";
 import OpenAI, { APIConnectionTimeoutError } from "openai";
 
@@ -540,24 +541,14 @@ export class AgentLoop {
             break;
           } catch (error) {
             const isTimeout = error instanceof APIConnectionTimeoutError;
-            // Lazily look up the APIConnectionError class at runtime to
-            // accommodate the test environment's minimal OpenAI mocks which
-            // do not define the class.  Falling back to `false` when the
-            // export is absent ensures the check never throws.
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const ApiConnErrCtor = (OpenAI as any).APIConnectionError as  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              | (new (...args: any) => Error)
-              | undefined;
-            const isConnectionError = ApiConnErrCtor
-              ? error instanceof ApiConnErrCtor
-              : false;
+            const isConnErr = isConnectionError(error);
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const errCtx = error as any;
             const status =
               errCtx?.status ?? errCtx?.httpStatus ?? errCtx?.statusCode;
             const isServerError = typeof status === "number" && status >= 500;
             if (
-              (isTimeout || isServerError || isConnectionError) &&
+              (isTimeout || isServerError || isConnErr) &&
               attempt < MAX_RETRIES
             ) {
               log(
@@ -741,13 +732,29 @@ export class AgentLoop {
                 // @ts-expect-error FIXME
                 message.tool_calls = [tool_call];
               } else {
-                if (tool_call?.function?.name) {
-                  message.tool_calls![0]!.function.name +=
-                    tool_call.function.name;
-                }
-                if (tool_call?.function?.arguments) {
-                  message.tool_calls![0]!.function.arguments +=
-                    tool_call.function.arguments;
+                // SDK v7 widened `tool_calls` to a union of the `function` and
+                // `custom` variants, so the element needs narrowing before
+                // `.function` is reachable.
+                //
+                // We deliberately do NOT narrow on `type === "function"`: the
+                // accumulator was seeded from the first delta chunk, and
+                // several OpenAI-compatible providers (Ollama, OpenRouter)
+                // omit `type` on continuation deltas. Gating on it would
+                // silently stop accumulating arguments mid-stream — a
+                // truncated tool call rather than a loud failure. Testing for
+                // the `function` payload itself keeps the previous runtime
+                // behaviour exactly.
+                const accumulator = message.tool_calls?.[0] as
+                  | { function: { name: string; arguments: string } }
+                  | undefined;
+                if (accumulator?.function) {
+                  if (tool_call?.function?.name) {
+                    accumulator.function.name += tool_call.function.name;
+                  }
+                  if (tool_call?.function?.arguments) {
+                    accumulator.function.arguments +=
+                      tool_call.function.arguments;
+                  }
                 }
               }
             }
@@ -929,15 +936,6 @@ export class AgentLoop {
       // resolve gracefully so callers can choose to retry.
       // -------------------------------------------------------------------
 
-      const NETWORK_ERRNOS = new Set([
-        "ECONNRESET",
-        "ECONNREFUSED",
-        "EPIPE",
-        "ENOTFOUND",
-        "ETIMEDOUT",
-        "EAI_AGAIN",
-      ]);
-
       const isNetworkOrServerError = (() => {
         if (!err || typeof err !== "object") {
           return false;
@@ -945,27 +943,14 @@ export class AgentLoop {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const e: any = err;
 
-        // Direct instance check for connection errors thrown by the OpenAI SDK.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const ApiConnErrCtor = (OpenAI as any).APIConnectionError as  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          | (new (...args: any) => Error)
-          | undefined;
-        if (ApiConnErrCtor && e instanceof ApiConnErrCtor) {
+        // Connection errors raised by the OpenAI SDK.
+        if (isConnectionError(err)) {
           return true;
         }
 
-        if (typeof e.code === "string" && NETWORK_ERRNOS.has(e.code)) {
-          return true;
-        }
-
-        // When the OpenAI SDK nests the underlying network failure inside the
-        // `cause` property we surface it as well so callers do not see an
-        // unhandled exception for errors like ENOTFOUND, ECONNRESET …
-        if (
-          e.cause &&
-          typeof e.cause === "object" &&
-          NETWORK_ERRNOS.has((e.cause as { code?: string }).code ?? "")
-        ) {
+        // Transport-level errno, either directly on the error or nested under
+        // `cause` (the SDK wraps the underlying socket failure there).
+        if (hasNetworkErrno(err)) {
           return true;
         }
 

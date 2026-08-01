@@ -398,7 +398,8 @@ export function SinglePassApp({
         baseURL: config.baseURL || "",
         timeout: OPENAI_TIMEOUT_MS,
       });
-      const chatResp = await openai.beta.chat.completions.parse({
+      // `parse` graduated out of the `beta` namespace in SDK v7.
+      const chatResp = await openai.chat.completions.parse({
         model: config.model,
         messages: [
           {

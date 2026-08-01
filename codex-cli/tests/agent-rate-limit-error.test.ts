@@ -24,11 +24,13 @@ vi.mock("openai", () => {
 
   // The real SDK exports this constructor – include it for typings even
   // though it is not used in this spec.
-  class APIConnectionTimeoutError extends Error {}
+  class APIConnectionError extends Error {}
+  class APIConnectionTimeoutError extends APIConnectionError {}
 
   return {
     __esModule: true,
     default: FakeOpenAI,
+    APIConnectionError,
     APIConnectionTimeoutError,
   };
 });

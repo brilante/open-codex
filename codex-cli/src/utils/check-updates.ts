@@ -80,7 +80,22 @@ export async function checkOutdated(
   });
 }
 
+/**
+ * Opt-in switch for the npm update check.
+ *
+ * This fork is installed from git (`npm link`), not published to the npm
+ * registry — see README "Lineage". Querying `npm outdated -g open-codex`
+ * therefore inspects the *upstream* package, which is unmaintained: it would
+ * either report nothing forever or advertise an unrelated version as an
+ * upgrade. Off by default; set this to re-enable if you do publish a build.
+ */
+const UPDATE_CHECK_ENABLED_ENV_VAR = "CODEX_ENABLE_UPDATE_CHECK";
+
 export async function checkForUpdates(): Promise<void> {
+  if (!process.env[UPDATE_CHECK_ENABLED_ENV_VAR]) {
+    return;
+  }
+
   const stateFile = join(CONFIG_DIR, "update-check.json");
   let state: UpdateCheckState | undefined;
   try {

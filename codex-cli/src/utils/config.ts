@@ -10,6 +10,10 @@ import type { FullAutoErrorMode } from "./auto-approval-mode.js";
 
 import { log, isLoggingEnabled } from "./agent/log.js";
 import { AutoApprovalMode } from "./auto-approval-mode.js";
+import {
+  resolveModelDefaults,
+  type ModelDefaultsOverrides,
+} from "./model-defaults.js";
 import { reportMissingAPIKeyForProvider } from "./model-utils.js";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { load as loadYaml, dump as dumpYaml } from "js-yaml";
@@ -104,37 +108,21 @@ function baseURLForProvider(provider: string): string {
   }
 }
 
-function defaultModelsForProvider(provider: string): {
+/**
+ * Per-provider model defaults.
+ *
+ * The table itself lives in `model-defaults.ts` so that it is defined exactly
+ * once and can be overridden from `~/.codex/config.json` without a code
+ * release. See that file for the rationale.
+ */
+function defaultModelsForProvider(
+  provider: string,
+  overrides?: ModelDefaultsOverrides,
+): {
   agentic: string;
   fullContext: string;
 } {
-  switch (provider) {
-    case "openai":
-      return {
-        agentic: "o4-mini",
-        fullContext: "o3",
-      };
-    case "gemini":
-      return {
-        agentic: "gemini-2.5-pro-preview-03-25",
-        fullContext: "gemini-2.0-flash",
-      };
-    case "openrouter":
-      return {
-        agentic: "openai/o4-mini",
-        fullContext: "openai/o3",
-      };
-    case "xai":
-      return {
-        agentic: "grok-3-mini-beta",
-        fullContext: "grok-3-beta",
-      };
-    default:
-      return {
-        agentic: "",
-        fullContext: "",
-      };
-  }
+  return resolveModelDefaults(provider, overrides);
 }
 
 export function setApiKey(apiKey: string): void {
@@ -152,6 +140,14 @@ export type StoredConfig = {
   approvalMode?: AutoApprovalMode;
   fullAutoErrorMode?: FullAutoErrorMode;
   memory?: MemoryConfig;
+  /**
+   * Per-provider model overrides, e.g.
+   * `{ "openai": { "agentic": "gpt-5.3-codex" } }`.
+   *
+   * Lets a retired model be replaced by editing config instead of waiting for
+   * a release. See `model-defaults.ts`.
+   */
+  models?: ModelDefaultsOverrides;
 };
 
 // Minimal config written on first run.  An *empty* model string ensures that
@@ -395,8 +391,8 @@ export const loadConfig = (
     : storedBaseURL ?? baseURLForProvider(providerOrDefault);
 
   const derivedModels = storedProvider
-    ? defaultModelsForProvider(storedProvider)
-    : defaultModelsForProvider(providerOrDefault);
+    ? defaultModelsForProvider(storedProvider, storedConfig.models)
+    : defaultModelsForProvider(providerOrDefault, storedConfig.models);
 
   const derivedModel =
     storedModel ||

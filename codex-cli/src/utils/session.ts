@@ -1,4 +1,14 @@
-export const CLI_VERSION = "0.1.31"; // Must be in sync with package.json.
+import packageJson from "../../package.json";
+
+/**
+ * Single source of truth for the version.
+ *
+ * This used to be a literal carrying the comment "Must be in sync with
+ * package.json" — a rule with nothing enforcing it, kept in step by a release
+ * script that asked the agent to edit both files. Reading package.json removes
+ * the possibility of drift instead of documenting it.
+ */
+export const CLI_VERSION: string = packageJson.version;
 export const ORIGIN = "codex_cli_ts";
 
 export type TerminalChatSession = {
